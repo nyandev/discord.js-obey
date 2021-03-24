@@ -15,6 +15,7 @@ interface ClientOptions extends DiscordClientOptions {
 }
 
 export const enum CommandError {
+  DummyCommand,
   GuildOnly,
   MissingPermissions,
   UnknownCommand
@@ -76,6 +77,11 @@ export class Client extends DiscordClient {
       return;
     }
 
+    if (command.dummy) {
+      this.error(CommandError.DummyCommand, message);
+      return;
+    }
+
     if (command.guildOnly && !message.guild) {
       this.error(CommandError.GuildOnly, message);
       return;
@@ -86,6 +92,7 @@ export class Client extends DiscordClient {
       this.error(CommandError.MissingPermissions, message);
       return;
     }
+
 
     command.run(message, {arguments: "parsing wip"});
   }

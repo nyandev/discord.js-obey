@@ -68,5 +68,7 @@ export abstract class Command {
     this.arguments = cls.options.args ?? DEFAULTS.args;
   }
 
-  abstract run(message: Message, args: Arguments): Promise<void>
+  async run(message: Message, args: Arguments): Promise<void> {
+    // Not abstract so that dummy commands need not define this
+  }
 }
