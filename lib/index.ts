@@ -1,2 +1,2 @@
 export { Client, CommandError, Permission } from './client';
-export { Arguments, Command } from './command';
+export { Arguments, Command, CommandConstructor, CommandConstructorOptions, CommandOptions } from './command';

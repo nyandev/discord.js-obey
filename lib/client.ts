@@ -5,7 +5,7 @@ import {
   Snowflake
 } from 'discord.js';
 
-import { Command, CommandConstructor } from './command';
+import { Command, CommandConstructor, CommandFactory } from './command';
 
 
 interface ClientOptions extends DiscordClientOptions {
@@ -18,6 +18,7 @@ export const enum CommandError {
   DummyCommand,
   GuildOnly,
   MissingPermissions,
+  RunError,
   UnknownCommand
 }
 
@@ -63,14 +64,7 @@ export class Client extends DiscordClient {
     const content = message.content.substring(prefix.length);
     const words = content.match(/\S+/gu) ?? [];
 
-    let command;
-    for (const i of words.keys()) {
-      const match = this.commands.get(words.slice(0, i + 1).join(' '));
-      if (match)
-        command = match;
-      else
-        break;
-    }
+    const command = this.getCommand(words);
 
     if (!command) {
       this.error(CommandError.UnknownCommand, message);
@@ -93,8 +87,11 @@ export class Client extends DiscordClient {
       return;
     }
 
-
-    command.run(message, {arguments: "parsing wip"});
+    try {
+      await command.run(message, {arguments: "parsing wip"});
+    } catch ( error ) {
+      this.error(CommandError.RunError, message);
+    }
   }
 
   private error(error: CommandError, message: Message): void {
@@ -102,12 +99,35 @@ export class Client extends DiscordClient {
       this.errorHandler(error, message);
   }
 
-  registerCommands(commands: CommandConstructor[]): void {
-    for (const commandConstructor of commands) {
-      const command = new commandConstructor(this);
+  private getCommand(words: string[]): Command | null {
+    if (words.length === 0)
+      return null;
+
+    let command = this.commands.get(words[0]);
+    if (!command)
+      return null;
+
+    for (const word of words.slice(1)) {
+      if (command?.subcommands?.has(word))
+        command = command.subcommands.get(word);
+      else
+        break;
+    }
+    return command || null;
+  }
+
+  registerCommands(commands: CommandConstructor[], factory?: CommandFactory): void {
+    for (const ctor of commands) {
+      const command = factory
+        ? factory(ctor, this, { factory })
+        : new ctor(this);
       if (this.commands.has(command.name))
         throw new Error(`Duplicate command name: ${command.name}`);
       this.commands.set(command.name, command);
     }
+  }
+
+  setGuildPrefix(guild: Snowflake, prefix: string) {
+    this.guildPrefixes.set(guild, prefix);
   }
 }

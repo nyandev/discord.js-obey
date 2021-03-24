@@ -3,23 +3,17 @@ import { Channel, GuildChannel, Intents, Message, TextChannel } from 'discord.js
 import { Arguments, Client, Command, CommandConstructor, CommandConstructorOptions, CommandError, CommandOptions, Permission } from '../lib';
 
 
-abstract class NyaCommand extends Command {
-  constructor(client: Client, protected module: Module, options?: CommandConstructorOptions) {
-    super(client, options);
-  }
-}
-
-class TestTestCommand extends NyaCommand {
+class TestTestCommand extends Command {
   static options = {
     name: 'test'
   };
   async run(message: Message, args: Arguments) {
-    console.log(this.constructor.name, this.module.constructor.name);
+    console.log(this.constructor.name);
     message.channel.send("oon tää kissa");
   }
 }
 
-class TestCommand extends NyaCommand {
+class TestCommand extends Command {
   static options = {
     name: 'test',
     dummy: false,
@@ -30,7 +24,7 @@ class TestCommand extends NyaCommand {
   };
 
   async run(message: Message, args: Arguments) {
-    console.log(this.constructor.name, this.module.constructor.name);
+    console.log(this.constructor.name);
     message.channel.send("...");
 /*
     const ch = await this.client.channels.fetch('775265183395479614');
@@ -40,25 +34,24 @@ class TestCommand extends NyaCommand {
   }
 }
 
-abstract class Module {
-  static commands: CommandConstructor[];
-
-  constructor(protected client: Client) {
-    const commands = (this.constructor as typeof Module).commands;
-    this.registerCommands(commands);
-  }
-
-  registerCommands(commands: CommandConstructor[]) {
-    console.log("registering", commands);
-    const factory = (ctor: CommandConstructor, client: Client, options: CommandConstructorOptions) => {
-      return new ctor(client, this, options);
-    };
-    this.client.registerCommands(commands, factory);
-  }
-}
+class Module { }
 
 class TestModule extends Module {
-  static commands = [TestCommand];
+  commands: Map<string, Command> = new Map();
+
+  constructor(private client: Client) {
+    super();
+    /*
+    const structure = {
+      test: {
+        command: cmd,
+        subcommands: {
+          test: subcmd
+        }
+      }
+    };*/
+    client.registerCommands([TestCommand]);
+  }
 }
 
 async function errorHandler(error: CommandError, message: Message) {
