@@ -1,0 +1,18 @@
+{
+  "name": "discord.js-obey",
+  "version": "0.1.0",
+  "description": "An unofficial command framework for Discord.js",
+  "author": "Jeremias Pettinen <hi@jeremi.as>",
+  "license": "MIT",
+  "main": "build/lib",
+  "scripts": {
+    "start": "node build/example-bot"
+  },
+  "dependencies": {
+    "discord.js": "github:discordjs/discord.js#f46940228e9f82db4af09ae2f2dad684db0d74ed"
+  },
+  "devDependencies": {
+    "@types/node": "^14.14.35",
+    "@types/ws": "^7.4.0"
+  }
+}
