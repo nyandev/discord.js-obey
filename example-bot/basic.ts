@@ -56,16 +56,18 @@ class TestModule extends Module {
 
 async function errorHandler(error: CommandError, message: Message) {
   let msg;
-  if (error === CommandError.UnknownCommand)
+  if (error.type === 'unknown-command')
     msg = "unknown command";
-  else if (error === CommandError.MissingPermissions)
+  else if (error.type === 'missing-permissions')
     msg = "missing permissions";
-  else if (error === CommandError.GuildOnly)
+  else if (error.type === 'guild-only-command')
     msg = "not in guild";
-  else if (error === CommandError.DummyCommand)
+  else if (error.type === 'dummy-command')
     msg = "this command is dum";
-  else if (error === CommandError.RunError)
+  else if (error.type === 'run-error')
     msg = "an error occurred while running the command";
+  else
+    msg = error.type;
 
   if (msg)
     return await message.channel.send(msg);

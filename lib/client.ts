@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 
 import { Command, CommandConstructor, CommandFactory } from './command';
+import { CommandError } from './errors';
 import { Parser } from './parser';
 
 
@@ -13,15 +14,6 @@ interface ClientOptions extends DiscordClientOptions {
   errorHandler?: ErrorHandler;
   globalPrefix: string;
   permissionsGetter: PermissionsGetter;
-}
-
-export const enum CommandError {
-  DummyCommand,
-  GuildOnly,
-  InvalidArguments,
-  MissingPermissions,
-  RunError,
-  UnknownCommand
 }
 
 type ErrorHandler = (error: CommandError, message: Message) => void;
@@ -39,10 +31,10 @@ type PermissionsGetter = (user: Snowflake, guild?: Snowflake) => Permission | Pr
 export class Client extends DiscordClient {
   private readonly commands: Map<string, Command> = new Map();
   private readonly guildPrefixes: Map<Snowflake, string> = new Map();
+  private readonly parser: Parser;
   private _globalPrefix: string;
   private errorHandler?: ErrorHandler;
   private permissionsGetter: PermissionsGetter;
-  private parser: Parser;
 
   constructor(options: ClientOptions) {
     super(options);
@@ -58,54 +50,60 @@ export class Client extends DiscordClient {
   }
 
   private async dispatch(message: Message): Promise<void> {
-    let prefix = this.globalPrefix;
-    if (message.guild)
-      prefix = this.guildPrefixes.get(message.guild.id) ?? prefix;
-
-    if (!message.content.startsWith(prefix))
-      return;
-
-    const { args, command, commandLike } = await this.parser.parseMessage(message);
+    const { args, command, commandLike, commandName } = await this.parser.parseMessage(message);
 
     if (!commandLike)
       return;
 
     if (!command) {
-      this.error(CommandError.UnknownCommand, message);
+      this.error({ type: 'unknown-command', commandName }, message);
       return;
     }
 
     if (command.dummy) {
-      this.error(CommandError.DummyCommand, message);
+      this.error({ type: 'dummy-command', command }, message);
       return;
     }
 
     if (command.guildOnly && !message.guild) {
-      this.error(CommandError.GuildOnly, message);
+      this.error({ type: 'guild-only-command', command }, message);
       return;
     }
 
-    const permissions = await this.permissionsGetter(message.author.id, message.guild?.id);
-    if (permissions < command.permissions) {
-      this.error(CommandError.MissingPermissions, message);
+    const userPermissions = await this.permissionsGetter(message.author.id, message.guild?.id);
+    if (userPermissions < command.permissions) {
+      this.error({ type: 'missing-permissions', command, userPermissions }, message);
       return;
     }
 
-    if (!args || !args.success) {
-      this.error(CommandError.InvalidArguments, message);
+    if (!args) {
+      this.error({
+        type: 'internal-error',
+        error: new Error("Parsed arguments are null (this shouldn't happen)")
+      }, message);
+      return;
+    }
+
+    if (!args.success) {
+      this.error({ type: 'invalid-arguments', error: args.error, command }, message);
       return;
     }
 
     try {
       await command.run(message, args.args);
-    } catch ( error ) {
-      this.error(CommandError.RunError, message);
+    } catch (error) {
+      this.error({ type: 'run-error', error }, message);
     }
   }
 
-  private error(error: CommandError, message: Message): void {
-    if (this.errorHandler)
-      this.errorHandler(error, message);
+  private async error(error: CommandError, message: Message): Promise<void> {
+    if (this.errorHandler) {
+      try {
+        await this.errorHandler(error, message);
+      } catch (anotherError) {
+        console.log("Error executing error handler:", error, anotherError);
+      }
+    }
   }
 
   getCommand(words: string[]): Command | null {

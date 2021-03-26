@@ -1,59 +1,69 @@
-import { Message } from 'discord.js';
+import { Message, TextChannel } from 'discord.js';
 
 import { Client } from './client';
-import { ArgumentSpec, Arguments, Command } from './command';
+import { ArgumentSpec, Command } from './command';
+import { ArgumentError } from './errors';
+import { parse as parseNumber } from './types/number';
 import { parse as parseTextChannel } from './types/text-channel';
 
-interface ArgumentParseError {
-  success: false;
-  error: string;
-  data?: string[];
-}
 
-interface ArgumentParseSuccess {
+interface ParsedArgumentsError {
+  success: false;
+  error: ArgumentError;
+}
+interface ParsedArgumentsSuccess {
   success: true;
   args: Arguments;
 }
+type ParsedArguments = ParsedArgumentsError | ParsedArgumentsSuccess;
 
-type ParsedArguments = ArgumentParseError | ArgumentParseSuccess;
+type ArgumentType = string | number | TextChannel;
+export type ParsedArgument = ParsedArgumentsError | { success: true; value: ArgumentType; };
+export type Arguments = Record<string, ArgumentType | ArgumentType[]>;
 
 interface ParsedMessage {
   args: ParsedArguments | null;
   command: Command | null;
   commandLike: boolean;
+  commandName: string | null;
+  prefix: string;
 }
 
-const typeParsers: Record<string, (arg: string, message: Message) => any> = {
-  'string': (arg: string) => arg,
-  'number': Number,
+type ArgumentParser = (arg: string, key: string, message: Message) => ParsedArgument | Promise<ParsedArgument>;
+
+const typeParsers: Record<string, ArgumentParser> = {
+  'string': (arg: string) => ({ success: true, value: arg }),
+  'number': parseNumber,
   'text-channel': parseTextChannel
 };
 
 export class Parser {
   constructor(private client: Client) { }
 
-  async parseArgs(args: ArgumentSpec[], values: string[], message: Message): Promise<ParsedArguments> {
-    if (args.length === 0)
-      return (values.length === 0) ? { success: true, args: {} } : { success: false, error: 'extra-arguments' };
+  async parseArgs(specs: ArgumentSpec[], values: string[], message: Message): Promise<ParsedArguments> {
+    if (specs.length === 0)
+      return (values.length === 0)
+        ? { success: true, args: {} }
+        : { success: false, error: { type: 'extra-arguments', maxArgs: 0 } };
 
-    const required = args.filter(arg => !arg.optional && !arg.catchAll);
+    const required = specs.filter(spec => !spec.optional && !spec.catchAll);
     if (values.length < required.length) {
-      const missing = required.slice(values.length).map(arg => arg.key);
-      return { success: false, error: 'missing-arguments', data: missing };
+      const missing = required.slice(values.length).map(spec => spec.key);
+      return { success: false, error: { type: 'missing-arguments', keys: missing } };
     }
 
-    const catchAll = args[args.length - 1].catchAll ? args[args.length - 1] : null;
+    const catchAll = specs[specs.length - 1].catchAll ? specs[specs.length - 1] : null;
     const catchAllList = [];
-    const parsed: Arguments = {};
+    const args: Arguments = {};
 
     for (const [i, value] of values.entries()) {
-      const spec = args[i];
+      const spec = specs[i];
       let type;
       let addToCatchAll = false;
 
       if (!spec) {
         if (!catchAll)
-          return { success: false, error: 'extra-arguments' };
+          return { success: false, error: { type: 'extra-arguments', maxArgs: specs.length } };
         addToCatchAll = true;
         type = catchAll.type;
       } else {
@@ -61,18 +71,20 @@ export class Parser {
         type = spec.type;
       }
 
-      if (!typeParsers[type])
-        return { success: false, error: 'unknown-type' };
-      const parsedValue = await typeParsers[type](value, message);
+      /*if (!typeParsers[type])
+        return { success: false, error: ArgumentError.UnknownType };*/
+      const parsed = await typeParsers[type](value, spec.key, message);
+      if (!parsed.success)
+        return { success: false, error: parsed.error };
 
       if (catchAll)
-        catchAllList.push(parsedValue);
+        catchAllList.push(parsed.value);
       else
-        parsed[spec.key] = parsedValue;
+        args[spec.key] = parsed.value;
     }
     if (catchAll)
-      parsed[catchAll.key] = catchAllList;
-    return { success: true, args: parsed };
+      args[catchAll.key] = catchAllList;
+    return { success: true, args };
   }
 
   async parseMessage(message: Message): Promise<ParsedMessage> {
@@ -82,6 +94,7 @@ export class Parser {
 
     let args = null;
     let command = null;
+    let commandName = null;
 
     const commandLike = message.content.startsWith(prefix);
     if (commandLike) {
@@ -89,11 +102,13 @@ export class Parser {
       const words = content.match(/\S+/gu) ?? [];
       command = this.client.getCommand(words);
       if (command) {
-        const commandName = command.name.split(' ');
-        args = await this.parseArgs(command.args, words.slice(commandName.length), message);
-
+        commandName = command.name;
+        args = await this.parseArgs(command.args, words.slice(commandName.split(' ').length), message);
+      } else {
+        commandName = words[0] ?? null;
       }
     }
-    return { args, command, commandLike };
+
+    return { args, command, commandLike, commandName, prefix };
   }
 }

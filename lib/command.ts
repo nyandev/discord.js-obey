@@ -1,6 +1,7 @@
 import { Message } from 'discord.js';
 
 import { Client, Permission } from './client';
+import { Arguments } from './parser';
 
 
 const DEFAULTS = {
@@ -16,8 +17,6 @@ export interface ArgumentSpec {
   optional?: boolean;
   catchAll?: boolean;
 }
-
-export type Arguments = Record<string, any>;
 
 interface Subcommands {
   [name: string]: CommandConstructor;
