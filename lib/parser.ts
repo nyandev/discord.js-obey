@@ -100,9 +100,10 @@ export class Parser {
     if (commandLike) {
       const content = message.content.substring(prefix.length);
       const words = content.match(/\S+/gu) ?? [];
-      command = this.client.getCommand(words);
-      if (command) {
-        commandName = command.name;
+      const commandInfo = this.client.getCommand(words);
+      if (commandInfo) {
+        command = commandInfo.command;
+        commandName = commandInfo.calledAs;
         args = await this.parseArgs(command.args, words.slice(commandName.split(' ').length), message);
       } else {
         commandName = words[0] ?? null;

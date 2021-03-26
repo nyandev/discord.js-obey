@@ -11,7 +11,8 @@ abstract class NyaCommand extends Command {
 
 class TestTestCommand extends NyaCommand {
   static options = {
-    name: 'test'
+    name: 'test',
+    alias: 'test'
   };
   async run(message: Message, args: Arguments) {
     console.log(this.constructor.name, this.module.constructor.name);
@@ -21,7 +22,7 @@ class TestTestCommand extends NyaCommand {
 
 class TestCommand extends NyaCommand {
   static options = {
-    name: 'test',
+    name: 'testy',
     dummy: false,
     permissions: Permission.Owner,
     subcommands: {

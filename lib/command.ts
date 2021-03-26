@@ -24,6 +24,7 @@ interface Subcommands {
 
 export interface CommandOptions {
   name: string;
+  alias?: string;
   description?: string;
   group?: string;
   guildOnly?: boolean;
@@ -47,6 +48,7 @@ export interface CommandConstructorOptions {
 
 export abstract class Command {
   readonly name: string;
+  readonly alias?: string;
   readonly description?: string;
   readonly group?: string;
   readonly guildOnly: boolean;
@@ -54,24 +56,33 @@ export abstract class Command {
   readonly dummy: boolean;
   readonly args: ArgumentSpec[];
   readonly subcommands: Map<string, Command> = new Map();
+  readonly parent?: Command;
 
   constructor(protected readonly client: Client, options?: CommandConstructorOptions) {
     const cls = this.constructor as CommandConstructor;
 
     if (!cls.options.name)
-      throw new Error("Command name cannot be empty.");
+      throw new Error("Command name cannot be empty");
+    if (/\s/.test(cls.options.name))
+      throw new Error("Command name cannot contain whitespace");
+    if (cls.options.alias === '')
+      throw new Error("Command alias cannot be empty");
+    if (cls.options.alias && /\s/.test(cls.options.alias))
+      throw new Error("Command alias cannot contain whitespace");
     if (cls.options.group === '')
-      throw new Error("Command group cannot be empty.");
+      throw new Error("Command group cannot be empty");
     if (options?.parent && cls.options.group !== undefined)
-      throw new Error("Command group can only be specified for base commands.");
+      throw new Error("Command group can only be specified for base commands");
 
     this.name = options?.parent ? `${options.parent.name} ${cls.options.name}` : cls.options.name;
+    this.alias = cls.options.alias;
     this.description = cls.options.description;
     this.group = cls.options.group || options?.parent?.group;
     this.guildOnly = cls.options.guildOnly ?? options?.parent?.guildOnly ?? DEFAULTS.guildOnly;
     this.permissions = cls.options.permissions ?? options?.parent?.permissions ?? DEFAULTS.permissions;
     this.dummy = cls.options.dummy ?? DEFAULTS.dummy;
     this.args = cls.options.args ?? DEFAULTS.args;
+    this.parent = options?.parent;
 
     validateArguments(this.args, cls.name);
     this.buildSubcommands(options?.factory);

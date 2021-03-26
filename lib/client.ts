@@ -30,6 +30,7 @@ type PermissionsGetter = (user: Snowflake, guild?: Snowflake) => Permission | Pr
 
 export class Client extends DiscordClient {
   private readonly commands: Map<string, Command> = new Map();
+  private readonly aliases: Map<string, Command> = new Map();
   private readonly guildPrefixes: Map<Snowflake, string> = new Map();
   private readonly parser: Parser;
   private _globalPrefix: string;
@@ -106,21 +107,35 @@ export class Client extends DiscordClient {
     }
   }
 
-  getCommand(words: string[]): Command | null {
+  getCommand(words: string[]): { command: Command, calledAs: string } | null {
     if (words.length === 0)
       return null;
 
-    let command = this.commands.get(words[0]);
+    let command = this.aliases.get(words[0]);
+    if (command)
+      return { command, calledAs: words[0] };
+
+    command = this.commands.get(words[0]);
     if (!command)
       return null;
 
     for (const word of words.slice(1)) {
       if (command?.subcommands?.has(word))
-        command = command.subcommands.get(word);
+        command = command.subcommands.get(word) as Command;
       else
         break;
     }
-    return command || null;
+    return { command, calledAs: command.name };
+  }
+
+  private registerAliases(command: Command) {
+    if (command.alias) {
+      if (this.commands.has(command.alias) || this.aliases.has(command.alias))
+        throw new Error(`Duplicate command alias: ${command.alias}`);
+      this.aliases.set(command.alias, command);
+    }
+    for (const subcommand of command.subcommands.values())
+      this.registerAliases(subcommand);
   }
 
   registerCommands(commands: CommandConstructor[], factory?: CommandFactory): void {
@@ -128,9 +143,11 @@ export class Client extends DiscordClient {
       const command = factory
         ? factory(ctor, this, { factory })
         : new ctor(this);
-      if (this.commands.has(command.name))
+      if (this.commands.has(command.name) || this.aliases.has(command.name))
         throw new Error(`Duplicate command name: ${command.name}`);
       this.commands.set(command.name, command);
+
+      this.registerAliases(command);
     }
   }
 
