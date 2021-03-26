@@ -73,6 +73,7 @@ export abstract class Command {
     this.dummy = cls.options.dummy ?? DEFAULTS.dummy;
     this.args = cls.options.args ?? DEFAULTS.args;
 
+    validateArguments(this.args, cls.name);
     this.buildSubcommands(options?.factory);
   }
 
@@ -80,7 +81,7 @@ export abstract class Command {
     // Not abstract so that dummy commands need not define this
   }
 
-  protected buildSubcommands(factory?: CommandFactory): void {
+  private buildSubcommands(factory?: CommandFactory): void {
     const cls = this.constructor as CommandConstructor;
     if (cls.options.subcommands) {
       for (const [name, ctor] of Object.entries(cls.options.subcommands)) {
@@ -90,5 +91,29 @@ export abstract class Command {
         this.subcommands.set(name, command);
       }
     }
+  }
+}
+
+function validateArguments(specs: ArgumentSpec[], commandName: string): void {
+  const error = (msg: string) => { throw new Error(`[${commandName}] ${msg}`); };
+  const keys = new Set();
+  let optionalArgsFound = false;
+
+  for (const [i, spec] of specs.entries()) {
+    if (spec.catchAll) {
+      if (i < specs.length - 1)
+        error("Only the last argument can be specified as catch-all");
+      if (spec.optional)
+        error("A catch-all argument cannot be specified as optional");
+    }
+
+    if (keys.has(spec.key))
+      error(`Duplicate argument key: ${spec.key}`);
+    keys.add(spec.key);
+
+    if (optionalArgsFound && !spec.optional && !spec.catchAll)
+      error("Required arguments must precede optional arguments");
+    if (spec.optional)
+      optionalArgsFound = true;
   }
 }
