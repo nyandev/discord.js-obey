@@ -26,12 +26,14 @@ class TestCommand extends NyaCommand {
     permissions: Permission.Owner,
     subcommands: {
       test: TestTestCommand
-    }
+    },
+    args: [
+      { key: 'channel', type: 'text-channel', optional: true }
+    ]
   };
 
   async run(message: Message, args: Arguments) {
-    console.log(this.constructor.name, this.module.constructor.name);
-    message.channel.send("...");
+    message.channel.send(`got ${args.channel}`);
 /*
     const ch = await this.client.channels.fetch('775265183395479614');
     if (ch instanceof TextChannel)

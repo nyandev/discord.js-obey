@@ -18,6 +18,7 @@ interface ClientOptions extends DiscordClientOptions {
 export const enum CommandError {
   DummyCommand,
   GuildOnly,
+  InvalidArguments,
   MissingPermissions,
   RunError,
   UnknownCommand
@@ -64,7 +65,7 @@ export class Client extends DiscordClient {
     if (!message.content.startsWith(prefix))
       return;
 
-    const { command, commandLike } = await this.parser.parseMessage(message);
+    const { args, command, commandLike } = await this.parser.parseMessage(message);
 
     if (!commandLike)
       return;
@@ -90,8 +91,13 @@ export class Client extends DiscordClient {
       return;
     }
 
+    if (!args || !args.success) {
+      this.error(CommandError.InvalidArguments, message);
+      return;
+    }
+
     try {
-      await command.run(message, {arguments: "parsing wip"});
+      await command.run(message, args.args);
     } catch ( error ) {
       this.error(CommandError.RunError, message);
     }
