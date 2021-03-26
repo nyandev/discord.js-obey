@@ -10,7 +10,7 @@ const DEFAULTS = {
   args: []
 };
 
-interface ArgumentSpec {
+export interface ArgumentSpec {
   key: string;
   type: string;
   optional?: boolean;
@@ -53,7 +53,7 @@ export abstract class Command {
   readonly guildOnly: boolean;
   readonly permissions: Permission;
   readonly dummy: boolean;
-  readonly arguments: ArgumentSpec[];
+  readonly args: ArgumentSpec[];
   readonly subcommands: Map<string, Command> = new Map();
 
   constructor(protected readonly client: Client, options?: CommandConstructorOptions) {
@@ -66,13 +66,13 @@ export abstract class Command {
     if (options?.parent && cls.options.group !== undefined)
       throw new Error("Command group can only be specified for base commands.");
 
-    this.name = cls.options.name;
+    this.name = options?.parent ? `${options.parent.name} ${cls.options.name}` : cls.options.name;
     this.description = cls.options.description;
     this.group = cls.options.group || options?.parent?.group;
     this.guildOnly = cls.options.guildOnly ?? options?.parent?.guildOnly ?? DEFAULTS.guildOnly;
     this.permissions = cls.options.permissions ?? options?.parent?.permissions ?? DEFAULTS.permissions;
     this.dummy = cls.options.dummy ?? DEFAULTS.dummy;
-    this.arguments = cls.options.args ?? DEFAULTS.args;
+    this.args = cls.options.args ?? DEFAULTS.args;
 
     this.buildSubcommands(options?.factory);
   }

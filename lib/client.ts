@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 
 import { Command, CommandConstructor, CommandFactory } from './command';
+import { Parser } from './parser';
 
 
 interface ClientOptions extends DiscordClientOptions {
@@ -35,18 +36,20 @@ export const enum Permission {
 type PermissionsGetter = (user: Snowflake, guild?: Snowflake) => Permission | Promise<Permission>;
 
 export class Client extends DiscordClient {
-  readonly commands: Map<string, Command> = new Map();
+  private readonly commands: Map<string, Command> = new Map();
   private readonly guildPrefixes: Map<Snowflake, string> = new Map();
-  private globalPrefix: string;
+  private _globalPrefix: string;
   private errorHandler?: ErrorHandler;
   private permissionsGetter: PermissionsGetter;
+  private parser: Parser;
 
   constructor(options: ClientOptions) {
     super(options);
 
-    this.globalPrefix = options.globalPrefix;
+    this._globalPrefix = options.globalPrefix;
     this.errorHandler = options.errorHandler;
     this.permissionsGetter = options.permissionsGetter;
+    this.parser = new Parser(this);
 
     this.on('message', message => {
       this.dispatch(message);
@@ -61,10 +64,10 @@ export class Client extends DiscordClient {
     if (!message.content.startsWith(prefix))
       return;
 
-    const content = message.content.substring(prefix.length);
-    const words = content.match(/\S+/gu) ?? [];
+    const { command, commandLike } = await this.parser.parseMessage(message);
 
-    const command = this.getCommand(words);
+    if (!commandLike)
+      return;
 
     if (!command) {
       this.error(CommandError.UnknownCommand, message);
@@ -99,7 +102,7 @@ export class Client extends DiscordClient {
       this.errorHandler(error, message);
   }
 
-  private getCommand(words: string[]): Command | null {
+  getCommand(words: string[]): Command | null {
     if (words.length === 0)
       return null;
 
@@ -127,7 +130,19 @@ export class Client extends DiscordClient {
     }
   }
 
-  setGuildPrefix(guild: Snowflake, prefix: string) {
+  get globalPrefix(): string {
+    return this._globalPrefix;
+  }
+
+  set globalPrefix(prefix: string) {
+    this._globalPrefix = prefix;
+  }
+
+  getGuildPrefix(guild: Snowflake): string | null {
+    return this.guildPrefixes.get(guild) ?? null;
+  }
+
+  setGuildPrefix(guild: Snowflake, prefix: string): void {
     this.guildPrefixes.set(guild, prefix);
   }
 }
