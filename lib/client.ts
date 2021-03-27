@@ -13,6 +13,7 @@ import { Parser } from './parser';
 interface ClientOptions extends DiscordClientOptions {
   errorHandler?: ErrorHandler;
   globalPrefix: string;
+  guildPrefixes?: Record<Snowflake, string>;
   permissionsGetter: PermissionsGetter;
 }
 
@@ -41,6 +42,10 @@ export class Client extends DiscordClient {
     super(options);
 
     this._globalPrefix = options.globalPrefix;
+    if (options.guildPrefixes) {
+      for (const [guild, prefix] of Object.entries(options.guildPrefixes))
+        this.guildPrefixes.set(guild, prefix);
+    }
     this.errorHandler = options.errorHandler;
     this.permissionsGetter = options.permissionsGetter;
     this.parser = new Parser(this);
@@ -126,6 +131,10 @@ export class Client extends DiscordClient {
         break;
     }
     return { command, calledAs: command.name };
+  }
+
+  getCommands(): ReadonlyMap<string, Command> {
+    return this.commands;
   }
 
   private registerAliases(command: Command) {

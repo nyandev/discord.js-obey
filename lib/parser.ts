@@ -73,11 +73,11 @@ export class Parser {
 
       /*if (!typeParsers[type])
         return { success: false, error: ArgumentError.UnknownType };*/
-      const parsed = await typeParsers[type](value, spec.key, message);
+      const parsed = await typeParsers[type](value, (catchAll && addToCatchAll) ? catchAll.key : spec.key, message);
       if (!parsed.success)
         return { success: false, error: parsed.error };
 
-      if (catchAll)
+      if (addToCatchAll)
         catchAllList.push(parsed.value);
       else
         args[spec.key] = parsed.value;

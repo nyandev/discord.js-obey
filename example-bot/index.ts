@@ -43,6 +43,37 @@ class TestCommand extends NyaCommand {
   }
 }
 
+class HelpCommand extends NyaCommand {
+  static options = {
+    name: 'help',
+    description: 'send help',
+    args: [
+      { key: 'command', type: 'string', catchAll: true }
+    ]
+  };
+
+  async run(message: Message, args: Arguments) {
+    if (Array.isArray(args.command)) {
+      const command = this.client.getCommand(args.command as string[]);
+      if (command)
+        message.channel.send(`**${command.command.name}**: ${command.command.description || 'no description'}`);
+      else
+        message.channel.send(`command ${args.command.join(' ')} not found`);
+    } else {
+      let msg = '';
+      const commands = this.client.getCommands();
+      for (const command of commands.values()) {
+        console.log(command);
+        msg += `**${command.name}**`;
+        if (command.description)
+          msg += `: ${command.description}`;
+        msg += '\n';
+      }
+      message.channel.send(msg);
+    }
+  }
+}
+
 abstract class Module {
   static commands: CommandConstructor[];
 
@@ -61,7 +92,7 @@ abstract class Module {
 }
 
 class TestModule extends Module {
-  static commands = [TestCommand];
+  static commands = [HelpCommand, TestCommand];
 }
 
 async function errorHandler(error: CommandError, message: Message) {
@@ -78,6 +109,8 @@ async function errorHandler(error: CommandError, message: Message) {
     msg = "an error occurred while running the command";
   else if (error.type === 'invalid-arguments')
     msg = "invalid arguments";
+  else
+    msg = error.type;
 
   if (msg)
     return await message.channel.send(msg);
