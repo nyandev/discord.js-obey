@@ -112,9 +112,11 @@ export class Client extends DiscordClient {
     }
   }
 
-  getCommand(words: string[]): { command: Command, calledAs: string } | null {
+  getCommand(words: string[], exactMatch: boolean = false): { command: Command, calledAs: string } | null {
     if (words.length === 0)
       return null;
+
+    words = words.map(word => word.toLowerCase());
 
     let command = this.aliases.get(words[0]);
     if (command)
@@ -125,12 +127,16 @@ export class Client extends DiscordClient {
       return null;
 
     for (const word of words.slice(1)) {
-      if (command?.subcommands?.has(word))
+      if (command?.subcommands?.has(word)) {
         command = command.subcommands.get(word) as Command;
-      else
-        break;
+      } else {
+        if (exactMatch)
+          return null;
+        else
+          break;
+      }
     }
-    return { command, calledAs: command.name };
+    return { command, calledAs: command.fullName };
   }
 
   getCommands(): ReadonlyMap<string, Command> {
@@ -152,12 +158,20 @@ export class Client extends DiscordClient {
       const command = factory
         ? factory(ctor, this, { factory })
         : new ctor(this);
-      if (this.commands.has(command.name) || this.aliases.has(command.name))
-        throw new Error(`Duplicate command name: ${command.name}`);
-      this.commands.set(command.name, command);
+      if (command.parent)
+        throw new Error("Subcommands cannot be registered directly");
+      if (this.commands.has(command.fullName) || this.aliases.has(command.fullName))
+        throw new Error(`Duplicate command name: ${command.fullName}`);
+      this.commands.set(command.fullName, command);
 
       this.registerAliases(command);
     }
+  }
+
+  getPrefix(message: Message): string {
+    if (message.guild)
+      return this.getGuildPrefix(message.guild.id) ?? this.globalPrefix;
+    return this.globalPrefix;
   }
 
   get globalPrefix(): string {

@@ -11,8 +11,8 @@ abstract class NyaCommand extends Command {
 
 class TestTestCommand extends NyaCommand {
   static options = {
-    name: 'test',
-    alias: 'test'
+    name: 'sub',
+    alias: 'sub'
   };
   async run(message: Message, args: Arguments) {
     console.log(this.constructor.name, this.module.constructor.name);
@@ -22,12 +22,13 @@ class TestTestCommand extends NyaCommand {
 
 class TestCommand extends NyaCommand {
   static options = {
-    name: 'testy',
+    name: 'test',
     dummy: false,
+    group: 'test test',
     permissions: Permission.Owner,
-    subcommands: {
-      test: TestTestCommand
-    },
+    subcommands: [
+      TestTestCommand
+    ],
     args: [
       { key: 'channel', type: 'text-channel' }
     ]
@@ -53,24 +54,50 @@ class HelpCommand extends NyaCommand {
   };
 
   async run(message: Message, args: Arguments) {
-    if (Array.isArray(args.command)) {
-      const command = this.client.getCommand(args.command as string[]);
-      if (command)
-        message.channel.send(`**${command.command.name}**: ${command.command.description || 'no description'}`);
-      else
-        message.channel.send(`command ${args.command.join(' ')} not found`);
+    const prefix = this.client.getPrefix(message);
+    let msg = '';
+
+    const commandName = args.command as string[];
+    if (commandName.length > 0) {
+      const commandInfo = this.client.getCommand(commandName, true);
+      if (!commandInfo) {
+        message.channel.send(`Command ${prefix}${commandName.join(' ')} not found`);
+        return;
+      }
+      const command = commandInfo.command;
+      msg = `**${prefix}${command.fullName}**`;
+      if (command.argHelp)
+        msg += ` \`${command.argHelp}\``;
+      if (command.description)
+        msg += `\n${command.description}`;
+      if (command.alias)
+        msg += `\nAlias: ${prefix}${command.alias}`;
+      if (command.subcommands.size > 0)
+        msg += `\nSubcommands: ${[...command.subcommands.keys()].join(', ')}`;
+      if (command.group)
+        msg += `\nGroup: ${command.group}`;
     } else {
-      let msg = '';
       const commands = this.client.getCommands();
+      const groups: Map<string | undefined, Command[]> = new Map();
       for (const command of commands.values()) {
-        console.log(command);
-        msg += `**${command.name}**`;
-        if (command.description)
-          msg += `: ${command.description}`;
+        const list = groups.get(command.group);
+        if (list)
+          list.push(command);
+        else
+          groups.set(command.group, [command]);
+      }
+      for (const [group, commands] of groups) {
+        msg += `__**${group || 'No group'}**__\n`;
+        for (const command of commands) {
+          msg += `**${prefix}${command.fullName}**`;
+          if (command.description)
+            msg += `: ${command.description}`;
+          msg += '\n';
+        }
         msg += '\n';
       }
-      message.channel.send(msg);
     }
+    message.channel.send(msg);
   }
 }
 
@@ -98,7 +125,8 @@ class TestModule extends Module {
 async function errorHandler(error: CommandError, message: Message) {
   let msg;
   if (error.type === 'unknown-command')
-    msg = "unknown command";
+    message.reply("unknown command");
+    //msg = "unknown command";
   else if (error.type === 'missing-permissions')
     msg = "missing permissions";
   else if (error.type === 'guild-only-command')

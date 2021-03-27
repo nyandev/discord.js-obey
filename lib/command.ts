@@ -18,10 +18,6 @@ export interface ArgumentSpec {
   catchAll?: boolean;
 }
 
-interface Subcommands {
-  [name: string]: CommandConstructor;
-}
-
 export interface CommandOptions {
   name: string;
   alias?: string;
@@ -31,7 +27,7 @@ export interface CommandOptions {
   permissions?: Permission;
   dummy?: boolean;
   args?: ArgumentSpec[];
-  subcommands?: Subcommands;
+  subcommands?: CommandConstructor[];
 }
 
 export interface CommandConstructor {
@@ -48,6 +44,7 @@ export interface CommandConstructorOptions {
 
 export abstract class Command {
   readonly name: string;
+  readonly fullName: string;
   readonly alias?: string;
   readonly description?: string;
   readonly group?: string;
@@ -55,6 +52,7 @@ export abstract class Command {
   readonly permissions: Permission;
   readonly dummy: boolean;
   readonly args: ArgumentSpec[];
+  readonly argHelp: string;
   readonly subcommands: Map<string, Command> = new Map();
   readonly parent?: Command;
 
@@ -65,16 +63,21 @@ export abstract class Command {
       throw new Error("Command name cannot be empty");
     if (/\s/.test(cls.options.name))
       throw new Error("Command name cannot contain whitespace");
+    if (cls.options.name !== cls.options.name.toLowerCase())
+      throw new Error("Command name must be lowercase");
     if (cls.options.alias === '')
       throw new Error("Command alias cannot be empty");
     if (cls.options.alias && /\s/.test(cls.options.alias))
       throw new Error("Command alias cannot contain whitespace");
+    if (cls.options.alias && cls.options.alias !== cls.options.alias.toLowerCase())
+      throw new Error("Command alias must be lowercase");
     if (cls.options.group === '')
       throw new Error("Command group cannot be empty");
     if (options?.parent && cls.options.group !== undefined)
       throw new Error("Command group can only be specified for base commands");
 
-    this.name = options?.parent ? `${options.parent.name} ${cls.options.name}` : cls.options.name;
+    this.name = cls.options.name;
+    this.fullName = options?.parent ? `${options.parent.fullName} ${this.name}` : this.name;
     this.alias = cls.options.alias;
     this.description = cls.options.description;
     this.group = cls.options.group || options?.parent?.group;
@@ -82,6 +85,7 @@ export abstract class Command {
     this.permissions = cls.options.permissions ?? options?.parent?.permissions ?? DEFAULTS.permissions;
     this.dummy = cls.options.dummy ?? DEFAULTS.dummy;
     this.args = cls.options.args ?? DEFAULTS.args;
+    this.argHelp = argumentHelp(this.args);
     this.parent = options?.parent;
 
     validateArguments(this.args, cls.name);
@@ -95,14 +99,27 @@ export abstract class Command {
   private buildSubcommands(factory?: CommandFactory): void {
     const cls = this.constructor as CommandConstructor;
     if (cls.options.subcommands) {
-      for (const [name, ctor] of Object.entries(cls.options.subcommands)) {
+      for (const ctor of cls.options.subcommands) {
         const command = factory
           ? factory(ctor, this.client, { factory, parent: this })
           : new ctor(this.client, { parent: this });
-        this.subcommands.set(name, command);
+        this.subcommands.set(ctor.options.name, command);
       }
     }
   }
+}
+
+function argumentHelp(args: ArgumentSpec[]) {
+  const strings = [];
+  for (const arg of args) {
+    let s = `<${arg.key}>`
+    if (arg.optional)
+      s = `[${s}]`;
+    if (arg.catchAll)
+      s = `${s}...`;
+    strings.push(s);
+  }
+  return strings.join(' ');
 }
 
 function validateArguments(specs: ArgumentSpec[], commandName: string): void {

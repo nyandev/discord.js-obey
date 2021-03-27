@@ -88,9 +88,7 @@ export class Parser {
   }
 
   async parseMessage(message: Message): Promise<ParsedMessage> {
-    let prefix = this.client.globalPrefix;
-    if (message.guild)
-      prefix = this.client.getGuildPrefix(message.guild.id) ?? prefix;
+    const prefix = this.client.getPrefix(message);
 
     let args = null;
     let command = null;
