@@ -9,7 +9,7 @@
     "start": "node build/example-bot"
   },
   "dependencies": {
-    "discord.js": "github:discordjs/discord.js#f46940228e9f82db4af09ae2f2dad684db0d74ed"
+    "discord.js": "github:discordjs/discord.js#624a4464ca86bfa0b095ecb2cdaac2e8030cc413"
   },
   "devDependencies": {
     "@types/node": "^14.14.35",
