@@ -6,6 +6,7 @@
   "license": "MIT",
   "main": "build/lib",
   "scripts": {
+    "prepare": "tsc",
     "start": "node build/example-bot"
   },
   "dependencies": {
